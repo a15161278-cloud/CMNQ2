@@ -1,4 +1,4 @@
-name: 权限成功验证版_V29
+name: 权限修复检测版_V31
 on: [push, workflow_dispatch]
 
 jobs:
@@ -43,27 +43,22 @@ jobs:
                   applicationId "com.car.game.helper"
                   minSdk 21
                   targetSdk 33
-                  versionCode 9
-                  versionName "3.3-SuccessBase"
+                  versionCode 11
+                  versionName "3.5"
               }
           }
           EOF
 
-          # 1. 沿用之前成功的设备过滤配置
-          cat <<'EOF' > app/src/main/res/xml/usb_device_filter.xml
-          <?xml version="1.0" encoding="utf-8"?>
-          <resources>
-              <usb-device />
-          </resources>
-          EOF
+          # 1. 设备过滤器
+          echo '<?xml version="1.0" encoding="utf-8"?><resources><usb-device /></resources>' > app/src/main/res/xml/usb_device_filter.xml
 
-          # 2. 沿用之前成功的清单配置
+          # 2. 清单文件 (完全沿用 26 版成功配置)
           cat <<'EOF' > app/src/main/AndroidManifest.xml
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
               <uses-feature android:name="android.hardware.usb.host" />
-              <application android:label="车载游戏助手" android:theme="@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen">
-                  <activity android:name="com.car.game.helper.MainActivity" android:exported="true" android:configChanges="orientation|screenSize|keyboard|navigation">
+              <application android:label="手柄检测中心" android:theme="@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen">
+                  <activity android:name="com.car.game.helper.MainActivity" android:exported="true">
                       <intent-filter>
                           <action android:name="android.intent.action.MAIN" />
                           <category android:name="android.intent.category.LAUNCHER" />
@@ -77,33 +72,38 @@ jobs:
           </manifest>
           EOF
 
-          # 3. 核心代码：不再跳转，改为直接抓取按键
+          # 3. 布局文件
+          cat <<'EOF' > app/src/main/res/layout/activity_main.xml
+          <?xml version="1.0" encoding="utf-8"?>
+          <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+              android:layout_width="match_parent" android:layout_height="match_parent"
+              android:background="#000000" android:gravity="center" android:orientation="vertical">
+              <TextView android:id="@+id/msgText" android:layout_width="wrap_content"
+                  android:layout_height="wrap_content" android:text="请按动手柄按键"
+                  android:textColor="#00FF00" android:textSize="24sp" />
+          </LinearLayout>
+          EOF
+
+          # 4. Java 代码 (修正了可能的语法错误)
           cat <<'EOF' > app/src/main/java/com/car/game/helper/MainActivity.java
           package com.car.game.helper;
           import android.app.Activity;
           import android.os.Bundle;
           import android.view.KeyEvent;
           import android.widget.TextView;
-          import android.view.WindowManager;
 
           public class MainActivity extends Activity {
-              private TextView status;
-
+              private TextView msgText;
               @Override
               protected void onCreate(Bundle savedInstanceState) {
                   super.onCreate(savedInstanceState);
-                  getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
                   setContentView(R.layout.activity_main);
-                  status = findViewById(R.id.statusText);
+                  msgText = findViewById(R.id.msgText);
               }
-
-              // 捕获所有物理按键事件
               @Override
               public boolean dispatchKeyEvent(KeyEvent event) {
                   if (event.getAction() == KeyEvent.ACTION_DOWN) {
-                      int code = event.getKeyCode();
-                      String name = (event.getDevice() != null) ? event.getDevice().getName() : "通用设备";
-                      status.setText("检测到输入！\n按键码: " + code + "\n设备名: " + name);
+                      msgText.setText("检测到键值: " + event.getKeyCode());
                       return true;
                   }
                   return super.dispatchKeyEvent(event);
@@ -111,69 +111,15 @@ jobs:
           }
           EOF
 
-          # 4. 简单的显示界面
-          cat <<'EOF' > app/src/main/res/layout/activity_main.xml
-          <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-              android:layout_width="match_parent" android:layout_height="match_parent"
-              android:background="#121212" android:gravity="center" android:orientation="vertical">
-              <TextView android:id="@+id/statusText" android:layout_width="wrap_content"
-                  android:layout_height="wrap_content" android:text="权限已激活\n请按动手柄按键..."
-                  android:textColor="#00FF00" android:textSize="26sp" android:gravity="center"/>
-          </LinearLayout>
-          EOF
-
-      - name: Build
+      - name: Build with Gradle
         uses: gradle/gradle-build-action@v2
         with:
           gradle-version: 7.5
-          arguments: assembleDebug --no-daemon --no-build-cache
+          arguments: assembleDebug --no-daemon
 
-      - name: Upload
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Gamepad-Success-Test
+          name: Gamepad-Tester-V31
           path: app/build/outputs/apk/debug/*.apk
-          package com.car.game.helper;
-          import android.app.Activity;
-          import android.os.Bundle;
-          import android.view.KeyEvent;
-          import android.widget.TextView;
-          import android.view.WindowManager;
 
-          public class MainActivity extends Activity {
-              private TextView keyText;
-
-              @Override
-              protected void onCreate(Bundle savedInstanceState) {
-                  super.onCreate(savedInstanceState);
-                  // 保持屏幕常亮
-                  getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-                  setContentView(R.layout.activity_main);
-                  keyText = findViewById(R.id.keyText);
-              }
-
-              // 捕获手柄按键 (A, B, X, Y, 方向键等)
-              @Override
-              public boolean dispatchKeyEvent(KeyEvent event) {
-                  if (event.getAction() == KeyEvent.ACTION_DOWN) {
-                      int keyCode = event.getKeyCode();
-                      String deviceName = event.getDevice() != null ? event.getDevice().getName() : "未知设备";
-                      keyText.setText("按键码: " + keyCode + "\n设备: " + deviceName);
-                      return true; // 拦截事件，不传给系统
-                  }
-                  return super.dispatchKeyEvent(event);
-              }
-          }
-          EOF
-
-      - name: Build
-        uses: gradle/gradle-build-action@v2
-        with:
-          gradle-version: 7.5
-          arguments: assembleDebug --no-daemon --no-build-cache
-
-      - name: Upload
-        uses: actions/upload-artifact@v4
-        with:
-          name: Car-Game-Engine-Test
-          path: app/build/outputs/apk/debug/*.apk
