@@ -1,4 +1,4 @@
-name: Gamepad_Helper_Final_V21
+name: Gamepad_Helper_V22_Final
 on: [push, workflow_dispatch]
 
 jobs:
@@ -19,16 +19,13 @@ jobs:
 
       - name: Build Project Structure
         run: |
-          # 1. 彻底清空，防止旧文件干扰
           rm -rf *
-          
-          # 2. 创建标准目录（必须严格匹配包名路径）
           mkdir -p app/src/main/java/com/car/game/helper
-          mkdir -p app/src/main/res/values
           
-          # 3. 根目录配置
+          # 1. 设置文件
           echo "include ':app'" > settings.gradle
           
+          # 2. 根目录配置
           cat <<'EOF' > build.gradle
           buildscript {
               repositories { google(); mavenCentral() }
@@ -37,7 +34,7 @@ jobs:
           allprojects { repositories { google(); mavenCentral() } }
           EOF
 
-          # 4. App 模块配置（修复了新版插件可能的 Task 冲突）
+          # 3. App 模块配置 - 彻底移除 androidx 依赖，减少下载失败风险
           cat <<'EOF' > app/build.gradle
           plugins { id 'com.android.application' }
           android {
@@ -51,19 +48,13 @@ jobs:
                   versionName "1.0"
               }
           }
-          dependencies { 
-              implementation 'androidx.appcompat:appcompat:1.6.1' 
-          }
           EOF
 
-          # 5. 极简资源文件（防止编译因缺少资源报错）
-          echo '<resources><string name="app_name">GamepadHelper</string></resources>' > app/src/main/res/values/strings.xml
-
-          # 6. 清单文件
+          # 4. 彻底精简清单文件 - 移除所有 Theme 引用，使用系统默认
           cat <<'EOF' > app/src/main/AndroidManifest.xml
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-              <application android:label="@string/app_name" android:theme="@style/Theme.AppCompat.Light.NoActionBar">
+              <application android:label="GamepadHelper">
                   <activity android:name="com.car.game.helper.MainActivity" android:exported="true">
                       <intent-filter>
                           <action android:name="android.intent.action.MAIN" />
@@ -74,7 +65,7 @@ jobs:
           </manifest>
           EOF
 
-          # 7. Java 代码
+          # 5. Java 代码 - 使用 android.app.Activity 而不是 androidx
           cat <<'EOF' > app/src/main/java/com/car/game/helper/MainActivity.java
           package com.car.game.helper;
           import android.app.Activity;
@@ -87,8 +78,12 @@ jobs:
                   super.onCreate(savedInstanceState);
                   try {
                       Intent i = getPackageManager().getLaunchIntentForPackage("com.cocav.tiemu");
-                      if (i != null) startActivity(i);
-                  } catch (Exception e) {}
+                      if (i != null) {
+                          startActivity(i);
+                      }
+                  } catch (Exception e) {
+                      // 启动失败静默退出
+                  }
                   finish();
               }
           }
