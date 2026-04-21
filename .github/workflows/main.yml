@@ -1,11 +1,11 @@
-name: Build_Pure_APK
+name: Gamepad_Helper_Emergency_Build
 on: [push, workflow_dispatch]
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Code
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Set up JDK 17
@@ -14,20 +14,15 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Install Gradle Manually
-        # 不使用官方 Action，直接在 Linux 里下载安装 Gradle
-        run: |
-          wget -q https://services.gradle.org/distributions/gradle-7.5-bin.zip
-          unzip -q gradle-7.5-bin.zip
-          echo "GRADLE_HOME=$(pwd)/gradle-7.5" >> $GITHUB_ENV
-          echo "$(pwd)/gradle-7.5/bin" >> $GITHUB_PATH
+      - name: Setup Android SDK
+        # 使用这个专门的 action 来确保 SDK 环境绝对可用
+        uses: android-actions/setup-android@v3
 
-      - name: Force Create Project Files
+      - name: Create Project Files
         run: |
           rm -rf app settings.gradle build.gradle
           mkdir -p app/src/main/java/com/car/game/helper
           mkdir -p app/src/main/res/xml
-          
           echo "include ':app'" > settings.gradle
           
           cat <<'EOF' > app/build.gradle
@@ -50,7 +45,6 @@ jobs:
           cat <<'EOF' > app/src/main/AndroidManifest.xml
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-              <uses-feature android:name="android.hardware.usb.host" android:required="true" />
               <application android:label="手柄启动助手" android:theme="@style/Theme.AppCompat.Light.NoActionBar">
                   <activity android:name="com.car.game.helper.MainActivity" android:exported="true">
                       <intent-filter>
@@ -95,9 +89,6 @@ jobs:
               }
               private void search() {
                   HashMap<String, UsbDevice> list = usbManager.getDeviceList();
-                  if (list.isEmpty()) {
-                      Toast.makeText(this, "等待手柄插入...", Toast.LENGTH_SHORT).show();
-                  }
                   for (UsbDevice d : list.values()) {
                       if (!usbManager.hasPermission(d)) {
                           int flags = Build.VERSION.SDK_INT >= 31 ? (PendingIntent.FLAG_MUTABLE | PendingIntent.FLAG_UPDATE_CURRENT) : PendingIntent.FLAG_UPDATE_CURRENT;
@@ -111,7 +102,6 @@ jobs:
                   try {
                       Intent i = getPackageManager().getLaunchIntentForPackage("com.cocav.tiemu");
                       if (i != null) { startActivity(i); finish(); }
-                      else Toast.makeText(this, "未找到酷咖游戏", Toast.LENGTH_SHORT).show();
                   } catch (Exception e) {}
               }
               protected void onDestroy() { 
@@ -121,9 +111,12 @@ jobs:
           }
           EOF
 
-      - name: Build with Gradle
-        # 使用手动安装的 gradle 编译，禁用缓存以防 400 错误
-        run: gradle assembleDebug --no-build-cache
+      - name: Final Build
+        # 直接下载并运行特定版本的 gradle 编译，彻底禁用缓存
+        run: |
+          wget -q https://services.gradle.org/distributions/gradle-7.5-bin.zip
+          unzip -q gradle-7.5-bin.zip
+          ./gradle-7.5/bin/gradle assembleDebug --no-daemon --no-build-cache
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
