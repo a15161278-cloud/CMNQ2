@@ -1,4 +1,4 @@
-name: Gamepad_Helper_Final_Standard
+name: Gamepad_Helper_V20_Final
 on: [push, workflow_dispatch]
 
 jobs:
@@ -8,13 +8,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Java 11
+      # 1. 升级到 JDK 17，满足 SDK Manager 的硬性要求
+      - name: Setup JDK 17
         uses: actions/setup-java@v4
         with:
-          java-version: '11'
+          java-version: '17'
           distribution: 'temurin'
 
-      # 使用官方 Action 自动配置 SDK，避免手动路径错误
+      # 2. 重新初始化 SDK，现在有了 JDK 17，这一步不会再报错了
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
@@ -23,38 +24,39 @@ jobs:
           rm -rf app settings.gradle build.gradle
           echo "include ':app'" > settings.gradle
           
-          # 根 build.gradle：明确插件版本
+          # 根 build.gradle：升级到支持 JDK 17 的插件版本
           cat <<'EOF' > build.gradle
           buildscript {
               repositories { google(); mavenCentral() }
-              dependencies { classpath 'com.android.tools.build:gradle:4.1.0' }
+              dependencies { classpath 'com.android.tools.build:gradle:7.4.2' }
           }
           allprojects { repositories { google(); mavenCentral() } }
           EOF
 
-          # App build.gradle
+          # App build.gradle：加入 namespace 规范
           mkdir -p app/src/main/java/com/car/game/helper
           cat <<'EOF' > app/build.gradle
-          apply plugin: 'com.android.application'
+          plugins { id 'com.android.application' }
           android {
-              compileSdkVersion 30
+              compileSdk 33
+              namespace "com.car.game.helper"
               defaultConfig {
                   applicationId "com.car.game.helper"
-                  minSdkVersion 21
-                  targetSdkVersion 30
+                  minSdk 21
+                  targetSdk 33
                   versionCode 1
                   versionName "1.0"
               }
           }
-          dependencies { implementation 'androidx.appcompat:appcompat:1.1.0' }
+          dependencies { implementation 'androidx.appcompat:appcompat:1.6.1' }
           EOF
 
-          # 清单文件
+          # AndroidManifest.xml
           cat <<'EOF' > app/src/main/AndroidManifest.xml
           <?xml version="1.0" encoding="utf-8"?>
-          <manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.car.game.helper">
-              <application android:label="GamepadHelper">
-                  <activity android:name=".MainActivity" android:exported="true">
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <application android:label="GamepadHelper" android:theme="@style/Theme.AppCompat.Light.NoActionBar">
+                  <activity android:name="com.car.game.helper.MainActivity" android:exported="true">
                       <intent-filter>
                           <action android:name="android.intent.action.MAIN" />
                           <category android:name="android.intent.category.LAUNCHER" />
@@ -64,7 +66,7 @@ jobs:
           </manifest>
           EOF
 
-          # Java 代码：最精简逻辑
+          # MainActivity.java
           cat <<'EOF' > app/src/main/java/com/car/game/helper/MainActivity.java
           package com.car.game.helper;
           import android.app.Activity;
@@ -77,20 +79,21 @@ jobs:
                   try {
                       Intent i = getPackageManager().getLaunchIntentForPackage("com.cocav.tiemu");
                       if (i != null) startActivity(i);
-                  } finally { finish(); }
+                  } catch (Exception e) {}
+                  finish();
               }
           }
           EOF
 
+      # 3. 使用适配 JDK 17 的 Gradle 7.5
       - name: Build with Gradle
-        # 使用官方构建插件，强制禁用可能导致 400 错误的缓存
         uses: gradle/gradle-build-action@v2
         with:
-          gradle-version: 6.7.1
+          gradle-version: 7.5
           arguments: assembleDebug --no-daemon --no-build-cache
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Gamepad-Helper-Success
+          name: Gamepad-Helper-Final
           path: app/build/outputs/apk/debug/*.apk
