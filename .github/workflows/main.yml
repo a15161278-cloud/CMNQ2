@@ -1,4 +1,4 @@
-name: Build_And_Fix_APK
+name: Build_Pure_APK
 on: [push, workflow_dispatch]
 
 jobs:
@@ -13,6 +13,14 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
+
+      - name: Install Gradle Manually
+        # 不使用官方 Action，直接在 Linux 里下载安装 Gradle
+        run: |
+          wget -q https://services.gradle.org/distributions/gradle-7.5-bin.zip
+          unzip -q gradle-7.5-bin.zip
+          echo "GRADLE_HOME=$(pwd)/gradle-7.5" >> $GITHUB_ENV
+          echo "$(pwd)/gradle-7.5/bin" >> $GITHUB_PATH
 
       - name: Force Create Project Files
         run: |
@@ -113,12 +121,9 @@ jobs:
           }
           EOF
 
-      - name: Setup Gradle and Build
-        # 这里的关键是指定 gradle-version，这样它就不去找那个该死的 gradlew 了
-        uses: gradle/gradle-build-action@v2
-        with:
-          gradle-version: 7.5
-          arguments: assembleDebug
+      - name: Build with Gradle
+        # 使用手动安装的 gradle 编译，禁用缓存以防 400 错误
+        run: gradle assembleDebug --no-build-cache
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
