@@ -15,7 +15,6 @@ jobs:
           distribution: 'temurin'
 
       - name: Force Create Project Files
-        # 先清空所有干扰，直接生成完美的工程结构
         run: |
           rm -rf app settings.gradle build.gradle
           mkdir -p app/src/main/java/com/car/game/helper
@@ -104,7 +103,7 @@ jobs:
                   try {
                       Intent i = getPackageManager().getLaunchIntentForPackage("com.cocav.tiemu");
                       if (i != null) { startActivity(i); finish(); }
-                      else Toast.makeText(this, "未找到酷咖游戏", Toast.LENGTH_LONG).show();
+                      else Toast.makeText(this, "未找到酷咖游戏", Toast.LENGTH_SHORT).show();
                   } catch (Exception e) {}
               }
               protected void onDestroy() { 
@@ -115,9 +114,10 @@ jobs:
           EOF
 
       - name: Setup Gradle and Build
-        # 使用官方 Action，它会自动安装 gradle 并处理所有缓存
+        # 这里的关键是指定 gradle-version，这样它就不去找那个该死的 gradlew 了
         uses: gradle/gradle-build-action@v2
         with:
+          gradle-version: 7.5
           arguments: assembleDebug
 
       - name: Upload APK
