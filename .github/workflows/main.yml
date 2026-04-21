@@ -1,4 +1,4 @@
-name: Gamepad_Helper_Final_Push
+name: Gamepad_Helper_Final_Standard
 on: [push, workflow_dispatch]
 
 jobs:
@@ -14,16 +14,16 @@ jobs:
           java-version: '11'
           distribution: 'temurin'
 
-      - name: Force Install Android Build Tools
-        # 直接通过 sdkmanager 强行安装 30.0.3，解决云端环境缺失导致的 Build 失败
-        run: |
-          echo "y" | $ANDROID_HOME/tools/bin/sdkmanager --install "build-tools;30.0.3" "platforms;android-30"
+      # 使用官方 Action 自动配置 SDK，避免手动路径错误
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
 
-      - name: Create Minimal Project
+      - name: Create Project Files
         run: |
           rm -rf app settings.gradle build.gradle
           echo "include ':app'" > settings.gradle
           
+          # 根 build.gradle：明确插件版本
           cat <<'EOF' > build.gradle
           buildscript {
               repositories { google(); mavenCentral() }
@@ -32,6 +32,7 @@ jobs:
           allprojects { repositories { google(); mavenCentral() } }
           EOF
 
+          # App build.gradle
           mkdir -p app/src/main/java/com/car/game/helper
           cat <<'EOF' > app/build.gradle
           apply plugin: 'com.android.application'
@@ -48,6 +49,7 @@ jobs:
           dependencies { implementation 'androidx.appcompat:appcompat:1.1.0' }
           EOF
 
+          # 清单文件
           cat <<'EOF' > app/src/main/AndroidManifest.xml
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.car.game.helper">
@@ -62,6 +64,7 @@ jobs:
           </manifest>
           EOF
 
+          # Java 代码：最精简逻辑
           cat <<'EOF' > app/src/main/java/com/car/game/helper/MainActivity.java
           package com.car.game.helper;
           import android.app.Activity;
@@ -79,14 +82,15 @@ jobs:
           }
           EOF
 
-      - name: Final Build
-        run: |
-          # 使用自带的 gradlew 如果没有则手动执行。强制不使用缓存以避开 400 错误。
-          chmod +x gradlew || true
-          gradle assembleDebug --no-daemon --no-build-cache
+      - name: Build with Gradle
+        # 使用官方构建插件，强制禁用可能导致 400 错误的缓存
+        uses: gradle/gradle-build-action@v2
+        with:
+          gradle-version: 6.7.1
+          arguments: assembleDebug --no-daemon --no-build-cache
 
-      - name: Upload
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Gamepad-Helper-Final
+          name: Gamepad-Helper-Success
           path: app/build/outputs/apk/debug/*.apk
