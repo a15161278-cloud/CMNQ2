@@ -14,16 +14,17 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
+      - name: Initialize Gradle Wrapper
+        # 这一步是关键：先在云端生成 gradlew 控制程序
+        run: gradle wrapper
+
       - name: Create Project Files
-        # 直接暴力生成所有文件，确保 100% 正确
         run: |
           mkdir -p app/src/main/java/com/car/game/helper
           mkdir -p app/src/main/res/xml
           
-          # 1. 写入 settings.gradle
           echo "include ':app'" > settings.gradle
           
-          # 2. 写入 app/build.gradle
           cat <<EOF > app/build.gradle
           plugins { id 'com.android.application' }
           android {
@@ -41,7 +42,6 @@ jobs:
           dependencies { implementation 'androidx.appcompat:appcompat:1.3.0' }
           EOF
 
-          # 3. 写入 AndroidManifest.xml
           cat <<EOF > app/src/main/AndroidManifest.xml
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
@@ -61,10 +61,8 @@ jobs:
           </manifest>
           EOF
 
-          # 4. 写入 device_filter.xml
           echo '<?xml version="1.0" encoding="utf-8"?><resources><usb-device /></resources>' > app/src/main/res/xml/device_filter.xml
 
-          # 5. 写入 MainActivity.java
           cat <<EOF > app/src/main/java/com/car/game/helper/MainActivity.java
           package com.car.game.helper;
           import android.app.Activity;
@@ -92,27 +90,35 @@ jobs:
               }
               private void search() {
                   HashMap<String, UsbDevice> list = usbManager.getDeviceList();
+                  if (list.isEmpty()) {
+                      Toast.makeText(this, "未检测到设备", Toast.LENGTH_SHORT).show();
+                  }
                   for (UsbDevice d : list.values()) {
                       if (!usbManager.hasPermission(d)) {
-                          int flags = Build.VERSION.SDK_INT >= 31 ? PendingIntent.FLAG_MUTABLE : 0;
+                          int flags = Build.VERSION.SDK_INT >= 31 ? (PendingIntent.FLAG_MUTABLE | PendingIntent.FLAG_UPDATE_CURRENT) : PendingIntent.FLAG_UPDATE_CURRENT;
                           PendingIntent pi = PendingIntent.getBroadcast(this, 0, new Intent(ACTION_USB_PERMISSION), flags);
                           usbManager.requestPermission(d, pi);
                       } else { launchApp(); }
-                      return;
+                      break;
                   }
-                  Toast.makeText(this, "请插入手柄", Toast.LENGTH_SHORT).show();
               }
               private void launchApp() {
                   Intent i = getPackageManager().getLaunchIntentForPackage("com.cocav.tiemu");
                   if (i != null) { startActivity(i); finish(); }
                   else Toast.makeText(this, "未找到酷咖游戏", Toast.LENGTH_SHORT).show();
               }
-              protected void onDestroy() { super.onDestroy(); unregisterReceiver(usbReceiver); }
+              protected void onDestroy() { 
+                  super.onDestroy(); 
+                  try { unregisterReceiver(usbReceiver); } catch(Exception e) {}
+              }
           }
           EOF
 
       - name: Build APK
-        run: gradle assembleDebug
+        # 使用刚刚生成的 gradlew 来构建
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
