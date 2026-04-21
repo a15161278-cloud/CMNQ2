@@ -1,4 +1,4 @@
-name: Ultimate_APK_Builder
+name: Gamepad_Helper_Force_Build
 on: [push, workflow_dispatch]
 
 jobs:
@@ -14,17 +14,22 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Clean and Recreate Project
-        # 这一步会删掉之前乱掉的旧文件，建立最干净的工程环境
+      - name: Clean Environment
+        run: rm -rf app settings.gradle build.gradle .gradle
+
+      - name: Generate Project Files
         run: |
-          rm -rf app settings.gradle build.gradle
           mkdir -p app/src/main/java/com/car/game/helper
           mkdir -p app/src/main/res/xml
           
+          # 1. Settings
           echo "include ':app'" > settings.gradle
           
-          cat <<EOF > app/build.gradle
-          plugins { id 'com.android.application' }
+          # 2. Build.gradle (使用最稳定的 7.x 语法)
+          cat <<'EOF' > app/build.gradle
+          plugins {
+              id 'com.android.application'
+          }
           android {
               compileSdk 30
               namespace "com.car.game.helper"
@@ -36,15 +41,21 @@ jobs:
                   versionName "1.0"
               }
           }
-          repositories { google(); mavenCentral() }
-          dependencies { implementation 'androidx.appcompat:appcompat:1.3.0' }
+          repositories {
+              google()
+              mavenCentral()
+          }
+          dependencies {
+              implementation 'androidx.appcompat:appcompat:1.3.0'
+          }
           EOF
 
-          cat <<EOF > app/src/main/AndroidManifest.xml
+          # 3. Manifest
+          cat <<'EOF' > app/src/main/AndroidManifest.xml
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
               <uses-feature android:name="android.hardware.usb.host" android:required="true" />
-              <application android:label="手柄启动助手">
+              <application android:label="手柄启动助手" android:theme="@style/Theme.AppCompat.Light.NoActionBar">
                   <activity android:name="com.car.game.helper.MainActivity" android:exported="true">
                       <intent-filter>
                           <action android:name="android.intent.action.MAIN" />
@@ -59,9 +70,11 @@ jobs:
           </manifest>
           EOF
 
+          # 4. Filter
           echo '<?xml version="1.0" encoding="utf-8"?><resources><usb-device /></resources>' > app/src/main/res/xml/device_filter.xml
 
-          cat <<EOF > app/src/main/java/com/car/game/helper/MainActivity.java
+          # 5. Java
+          cat <<'EOF' > app/src/main/java/com/car/game/helper/MainActivity.java
           package com.car.game.helper;
           import android.app.Activity;
           import android.content.*;
@@ -89,7 +102,7 @@ jobs:
               private void search() {
                   HashMap<String, UsbDevice> list = usbManager.getDeviceList();
                   if (list.isEmpty()) {
-                      Toast.makeText(this, "请插入手柄", Toast.LENGTH_SHORT).show();
+                      Toast.makeText(this, "检测中，请确保接收器已插入", Toast.LENGTH_SHORT).show();
                   }
                   for (UsbDevice d : list.values()) {
                       if (!usbManager.hasPermission(d)) {
@@ -104,7 +117,7 @@ jobs:
                   try {
                       Intent i = getPackageManager().getLaunchIntentForPackage("com.cocav.tiemu");
                       if (i != null) { startActivity(i); finish(); }
-                      else Toast.makeText(this, "未找到酷咖游戏", Toast.LENGTH_SHORT).show();
+                      else Toast.makeText(this, "未找到目标游戏", Toast.LENGTH_LONG).show();
                   } catch (Exception e) {}
               }
               protected void onDestroy() { 
@@ -114,16 +127,13 @@ jobs:
           }
           EOF
 
-      - name: Initialize Gradle
-        run: gradle wrapper
-
-      - name: Build APK
+      - name: Force Build
         run: |
-          chmod +x gradlew
-          ./gradlew assembleDebug
+          gradle wrapper
+          ./gradlew assembleDebug --stacktrace
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Gamepad-Helper-Final
+          name: Gamepad-Helper-Download
           path: app/build/outputs/apk/debug/*.apk
