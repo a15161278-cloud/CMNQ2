@@ -1,4 +1,4 @@
-name: 极简内置模拟器版_V27_Fixed
+name: 权限成功验证版_V29
 on: [push, workflow_dispatch]
 
 jobs:
@@ -17,7 +17,7 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: 构建内置引擎项目
+      - name: 构建项目
         run: |
           rm -rf *
           mkdir -p app/src/main/java/com/car/game/helper
@@ -43,52 +43,33 @@ jobs:
                   applicationId "com.car.game.helper"
                   minSdk 21
                   targetSdk 33
-                  versionCode 7
-                  versionName "3.1-Alpha"
+                  versionCode 9
+                  versionName "3.3-SuccessBase"
               }
           }
           EOF
 
-          # 1. 界面：增加一个大的状态显示，方便你在车机上远处也能看清
-          cat <<'EOF' > app/src/main/res/layout/activity_main.xml
-          <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-              android:layout_width="match_parent"
-              android:layout_height="match_parent"
-              android:background="#121212"
-              android:gravity="center"
-              android:orientation="vertical">
-              <TextView
-                  android:id="@+id/statusText"
-                  android:layout_width="wrap_content"
-                  android:layout_height="wrap_content"
-                  android:text="模拟器引擎已启动\n等待手柄输入..."
-                  android:textColor="#00FF00"
-                  android:textSize="24sp"
-                  android:gravity="center"/>
-              <TextView
-                  android:id="@+id/keyText"
-                  android:layout_width="wrap_content"
-                  android:layout_height="wrap_content"
-                  android:layout_marginTop="20dp"
-                  android:text="[未检测到按键]"
-                  android:textColor="#FFBB00"
-                  android:textSize="30sp"/>
-          </LinearLayout>
+          # 1. 沿用之前成功的设备过滤配置
+          cat <<'EOF' > app/src/main/res/xml/usb_device_filter.xml
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <usb-device />
+          </resources>
           EOF
 
-          echo '<?xml version="1.0" encoding="utf-8"?><resources><usb-device /></resources>' > app/src/main/res/xml/usb_device_filter.xml
-
-          # 2. 清单文件：申请存储权限和硬件控制权
+          # 2. 沿用之前成功的清单配置
           cat <<'EOF' > app/src/main/AndroidManifest.xml
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
               <uses-feature android:name="android.hardware.usb.host" />
-              <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
-              <application android:label="车载游戏中心" android:theme="@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen">
+              <application android:label="车载游戏助手" android:theme="@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen">
                   <activity android:name="com.car.game.helper.MainActivity" android:exported="true" android:configChanges="orientation|screenSize|keyboard|navigation">
                       <intent-filter>
                           <action android:name="android.intent.action.MAIN" />
                           <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                      <intent-filter>
+                          <action android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED" />
                       </intent-filter>
                       <meta-data android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED" android:resource="@xml/usb_device_filter" />
                   </activity>
@@ -96,8 +77,62 @@ jobs:
           </manifest>
           EOF
 
-          # 3. 核心 Java 代码：全面捕获手柄和键盘事件
+          # 3. 核心代码：不再跳转，改为直接抓取按键
           cat <<'EOF' > app/src/main/java/com/car/game/helper/MainActivity.java
+          package com.car.game.helper;
+          import android.app.Activity;
+          import android.os.Bundle;
+          import android.view.KeyEvent;
+          import android.widget.TextView;
+          import android.view.WindowManager;
+
+          public class MainActivity extends Activity {
+              private TextView status;
+
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+                  getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+                  setContentView(R.layout.activity_main);
+                  status = findViewById(R.id.statusText);
+              }
+
+              // 捕获所有物理按键事件
+              @Override
+              public boolean dispatchKeyEvent(KeyEvent event) {
+                  if (event.getAction() == KeyEvent.ACTION_DOWN) {
+                      int code = event.getKeyCode();
+                      String name = (event.getDevice() != null) ? event.getDevice().getName() : "通用设备";
+                      status.setText("检测到输入！\n按键码: " + code + "\n设备名: " + name);
+                      return true;
+                  }
+                  return super.dispatchKeyEvent(event);
+              }
+          }
+          EOF
+
+          # 4. 简单的显示界面
+          cat <<'EOF' > app/src/main/res/layout/activity_main.xml
+          <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+              android:layout_width="match_parent" android:layout_height="match_parent"
+              android:background="#121212" android:gravity="center" android:orientation="vertical">
+              <TextView android:id="@+id/statusText" android:layout_width="wrap_content"
+                  android:layout_height="wrap_content" android:text="权限已激活\n请按动手柄按键..."
+                  android:textColor="#00FF00" android:textSize="26sp" android:gravity="center"/>
+          </LinearLayout>
+          EOF
+
+      - name: Build
+        uses: gradle/gradle-build-action@v2
+        with:
+          gradle-version: 7.5
+          arguments: assembleDebug --no-daemon --no-build-cache
+
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: Gamepad-Success-Test
+          path: app/build/outputs/apk/debug/*.apk
           package com.car.game.helper;
           import android.app.Activity;
           import android.os.Bundle;
