@@ -18,19 +18,28 @@ jobs:
           java-version: '11'
           distribution: 'temurin'
 
-      - name: Fix Project Structure
-        # 这个步骤会自动把你放错位置的 build.gradle 挪到正确的地方
+      - name: Auto Fix Structure
+        # 强制纠正所有文件位置
         run: |
-          mkdir -p app
-          if [ -f app/src/main/build.gradle ]; then mv app/src/main/build.gradle app/build.gradle; fi
+          mkdir -p app/src/main/res/xml
+          mkdir -p app/src/main/java/com/car/game/helper
+          
+          # 移动 build.gradle 到 app 目录
+          find . -name "build.gradle" -not -path "./app/build.gradle" -exec mv {} app/build.gradle \;
+          
+          # 移动 manifest 和 res
+          find . -name "AndroidManifest.xml" -exec mv {} app/src/main/AndroidManifest.xml \;
+          find . -name "device_filter.xml" -exec mv {} app/src/main/res/xml/device_filter.xml \;
+          
+          # 强制刷新 settings.gradle
           echo "include ':app'" > settings.gradle
 
       - name: Build with Gradle
-        # 使用云端内置的 Gradle 直接打包
+        # 使用项目根目录直接编译
         run: gradle assembleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Gamepad-Helper-Download
-          path: app/build/outputs/apk/debug/*.apk
+          name: Gamepad-Helper-APK
+          path: "**/*.apk"
