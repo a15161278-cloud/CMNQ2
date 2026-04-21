@@ -1,4 +1,4 @@
-name: 权限修复检测版_V31
+name: 原始USB数据监听版_V32
 on: [push, workflow_dispatch]
 
 jobs:
@@ -43,21 +43,21 @@ jobs:
                   applicationId "com.car.game.helper"
                   minSdk 21
                   targetSdk 33
-                  versionCode 11
-                  versionName "3.5"
+                  versionCode 12
+                  versionName "4.0"
               }
           }
           EOF
 
-          # 1. 设备过滤器
+          # 1. 成功的设备过滤器
           echo '<?xml version="1.0" encoding="utf-8"?><resources><usb-device /></resources>' > app/src/main/res/xml/usb_device_filter.xml
 
-          # 2. 清单文件 (完全沿用 26 版成功配置)
+          # 2. 清单文件 (保留 26 版成功配置)
           cat <<'EOF' > app/src/main/AndroidManifest.xml
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
               <uses-feature android:name="android.hardware.usb.host" />
-              <application android:label="手柄检测中心" android:theme="@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen">
+              <application android:label="车载游戏中心" android:theme="@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen">
                   <activity android:name="com.car.game.helper.MainActivity" android:exported="true">
                       <intent-filter>
                           <action android:name="android.intent.action.MAIN" />
@@ -79,31 +79,65 @@ jobs:
               android:layout_width="match_parent" android:layout_height="match_parent"
               android:background="#000000" android:gravity="center" android:orientation="vertical">
               <TextView android:id="@+id/msgText" android:layout_width="wrap_content"
-                  android:layout_height="wrap_content" android:text="请按动手柄按键"
-                  android:textColor="#00FF00" android:textSize="24sp" />
+                  android:layout_height="wrap_content" android:text="请插上手柄并允许权限"
+                  android:textColor="#00FF00" android:textSize="20sp" android:gravity="center" />
+              <TextView android:id="@+id/rawText" android:layout_width="wrap_content"
+                  android:layout_height="wrap_content" android:layout_marginTop="20dp"
+                  android:text="等待数据..." android:textColor="#FFBB00" android:textSize="18sp" />
           </LinearLayout>
           EOF
 
-          # 4. Java 代码 (修正了可能的语法错误)
+          # 4. Java 代码：双重监听（按键监听 + 原始 USB 设备识别）
           cat <<'EOF' > app/src/main/java/com/car/game/helper/MainActivity.java
           package com.car.game.helper;
           import android.app.Activity;
+          import android.content.Context;
+          import android.hardware.usb.UsbDevice;
+          import android.hardware.usb.UsbManager;
           import android.os.Bundle;
           import android.view.KeyEvent;
+          import android.view.InputDevice;
           import android.widget.TextView;
+          import java.util.HashMap;
 
           public class MainActivity extends Activity {
-              private TextView msgText;
+              private TextView msgText, rawText;
+
               @Override
               protected void onCreate(Bundle savedInstanceState) {
                   super.onCreate(savedInstanceState);
                   setContentView(R.layout.activity_main);
                   msgText = findViewById(R.id.msgText);
+                  rawText = findViewById(R.id.rawText);
+                  checkUsbDevices();
               }
+
+              private void checkUsbDevices() {
+                  UsbManager manager = (UsbManager) getSystemService(Context.USB_SERVICE);
+                  HashMap<String, UsbDevice> deviceList = manager.getDeviceList();
+                  if (!deviceList.isEmpty()) {
+                      StringBuilder sb = new StringBuilder("已识别 USB 设备:\n");
+                      for (UsbDevice device : deviceList.values()) {
+                          sb.append(device.getProductName()).append(" (ID:").append(device.getDeviceId()).append(")\n");
+                      }
+                      msgText.setText(sb.toString());
+                  }
+              }
+
+              // 尝试捕获手柄摇杆或特殊按钮信号
+              @Override
+              public boolean onGenericMotionEvent(android.view.MotionEvent event) {
+                  if ((event.getSource() & InputDevice.SOURCE_JOYSTICK) == InputDevice.SOURCE_JOYSTICK) {
+                      rawText.setText("检测到摇杆移动!");
+                      return true;
+                  }
+                  return super.onGenericMotionEvent(event);
+              }
+
               @Override
               public boolean dispatchKeyEvent(KeyEvent event) {
                   if (event.getAction() == KeyEvent.ACTION_DOWN) {
-                      msgText.setText("检测到键值: " + event.getKeyCode());
+                      rawText.setText("按键码(KeyCode): " + event.getKeyCode());
                       return true;
                   }
                   return super.dispatchKeyEvent(event);
@@ -111,15 +145,14 @@ jobs:
           }
           EOF
 
-      - name: Build with Gradle
+      - name: Build
         uses: gradle/gradle-build-action@v2
         with:
           gradle-version: 7.5
           arguments: assembleDebug --no-daemon
 
-      - name: Upload APK
+      - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: Gamepad-Tester-V31
+          name: Gamepad-Raw-V32
           path: app/build/outputs/apk/debug/*.apk
-
