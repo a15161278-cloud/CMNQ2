@@ -1,31 +1,32 @@
-name: 手柄助手增强版
+name: Gamepad_Helper_V25_Stable
 on: [push, workflow_dispatch]
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: 拉取代码
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: 安装Java 17
+      - name: Setup JDK 17
         uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: 安装安卓开发工具
+      - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: 重新生成正式代码
+      - name: Build Project Structure
         run: |
           rm -rf *
+          # 目录结构必须匹配包名
           mkdir -p app/src/main/java/com/car/game/helper
-          mkdir -p app/src/main/res/layout
-          mkdir -p app/src/main/res/values
           
-          # 1. 配置文件
+          # 1. 基础设置
           echo "include ':app'" > settings.gradle
+          
+          # 2. 根编译配置
           cat <<'EOF' > build.gradle
           buildscript {
               repositories { google(); mavenCentral() }
@@ -34,7 +35,7 @@ jobs:
           allprojects { repositories { google(); mavenCentral() } }
           EOF
 
-          # 2. App 编译规则
+          # 3. App 编译配置 (精简版，不带多余依赖)
           cat <<'EOF' > app/build.gradle
           plugins { id 'com.android.application' }
           android {
@@ -44,22 +45,18 @@ jobs:
                   applicationId "com.car.game.helper"
                   minSdk 21
                   targetSdk 33
-                  versionCode 2
-                  versionName "1.1"
+                  versionCode 1
+                  versionName "1.0"
               }
           }
           EOF
 
-          # 3. 简单的界面显示
-          echo '<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent" android:gravity="center" android:orientation="vertical"><TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="手柄辅助启动器已运行\n正在监听手柄连接..." android:textSize="18sp" android:gravity="center"/></LinearLayout>' > app/src/main/res/layout/activity_main.xml
-          echo '<resources><string name="app_name">手柄助手</string></resources>' > app/src/main/res/values/strings.xml
-
-          # 4. 安卓清单 (加上手柄监听权限)
+          # 4. 清单文件 (加入 USB 监听声明)
           cat <<'EOF' > app/src/main/AndroidManifest.xml
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-              <application android:label="手柄助手" android:allowBackup="true" android:icon="@android:drawable/ic_menu_directions">
-                  <activity android:name="com.car.game.helper.MainActivity" android:exported="true" android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar">
+              <application android:label="手柄助手">
+                  <activity android:name="com.car.game.helper.MainActivity" android:exported="true">
                       <intent-filter>
                           <action android:name="android.intent.action.MAIN" />
                           <category android:name="android.intent.category.LAUNCHER" />
@@ -72,49 +69,146 @@ jobs:
           </manifest>
           EOF
 
-          # 5. 核心 Java 代码
+          # 5. 核心 Java 代码 (直达酷咖)
           cat <<'EOF' > app/src/main/java/com/car/game/helper/MainActivity.java
           package com.car.game.helper;
           import android.app.Activity;
           import android.content.Intent;
           import android.os.Bundle;
-          import android.widget.Toast;
 
           public class MainActivity extends Activity {
               @Override
               protected void onCreate(Bundle savedInstanceState) {
                   super.onCreate(savedInstanceState);
-                  setContentView(R.layout.activity_main);
-                  
-                  // 尝试启动模拟器
-                  launchTargetApp();
-              }
-
-              private void launchTargetApp() {
                   try {
+                      // 启动酷咖
                       Intent i = getPackageManager().getLaunchIntentForPackage("com.cocav.tiemu");
                       if (i != null) {
                           startActivity(i);
-                          // 启动成功后，过 2 秒自动关闭本助手，防止干扰
-                          getWindow().getDecorView().postDelayed(() -> finish(), 2000);
-                      } else {
-                          Toast.makeText(this, "找不到模拟器(com.cocav.tiemu)，请检查是否安装", Toast.LENGTH_LONG).show();
                       }
                   } catch (Exception e) {
-                      Toast.makeText(this, "启动出错: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                      // 启动失败不崩溃
                   }
+                  finish(); // 功成身退，自己关闭
               }
           }
           EOF
 
-      - name: 打包 APK
+      - name: Build with Gradle
         uses: gradle/gradle-build-action@v2
         with:
           gradle-version: 7.5
           arguments: assembleDebug --no-daemon --no-build-cache
 
-      - name: 导出
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Gamepad-Helper-V1.1
+          name: Gamepad-Helper-V25
+          path: app/build/outputs/apk/debug/*.apk
+name: Gamepad_Helper_V25_Stable
+on: [push, workflow_dispatch]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Build Project Structure
+        run: |
+          rm -rf *
+          # 目录结构必须匹配包名
+          mkdir -p app/src/main/java/com/car/game/helper
+          
+          # 1. 基础设置
+          echo "include ':app'" > settings.gradle
+          
+          # 2. 根编译配置
+          cat <<'EOF' > build.gradle
+          buildscript {
+              repositories { google(); mavenCentral() }
+              dependencies { classpath 'com.android.tools.build:gradle:7.4.2' }
+          }
+          allprojects { repositories { google(); mavenCentral() } }
+          EOF
+
+          # 3. App 编译配置 (精简版，不带多余依赖)
+          cat <<'EOF' > app/build.gradle
+          plugins { id 'com.android.application' }
+          android {
+              compileSdk 33
+              namespace "com.car.game.helper"
+              defaultConfig {
+                  applicationId "com.car.game.helper"
+                  minSdk 21
+                  targetSdk 33
+                  versionCode 1
+                  versionName "1.0"
+              }
+          }
+          EOF
+
+          # 4. 清单文件 (加入 USB 监听声明)
+          cat <<'EOF' > app/src/main/AndroidManifest.xml
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <application android:label="手柄助手">
+                  <activity android:name="com.car.game.helper.MainActivity" android:exported="true">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                      <intent-filter>
+                          <action android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED" />
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          EOF
+
+          # 5. 核心 Java 代码 (直达酷咖)
+          cat <<'EOF' > app/src/main/java/com/car/game/helper/MainActivity.java
+          package com.car.game.helper;
+          import android.app.Activity;
+          import android.content.Intent;
+          import android.os.Bundle;
+
+          public class MainActivity extends Activity {
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+                  try {
+                      // 启动酷咖
+                      Intent i = getPackageManager().getLaunchIntentForPackage("com.cocav.tiemu");
+                      if (i != null) {
+                          startActivity(i);
+                      }
+                  } catch (Exception e) {
+                      // 启动失败不崩溃
+                  }
+                  finish(); // 功成身退，自己关闭
+              }
+          }
+          EOF
+
+      - name: Build with Gradle
+        uses: gradle/gradle-build-action@v2
+        with:
+          gradle-version: 7.5
+          arguments: assembleDebug --no-daemon --no-build-cache
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Gamepad-Helper-V25
           path: app/build/outputs/apk/debug/*.apk
