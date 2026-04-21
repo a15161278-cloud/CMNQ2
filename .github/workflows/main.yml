@@ -14,12 +14,10 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Initialize Gradle Wrapper
-        # 这一步是关键：先在云端生成 gradlew 控制程序
-        run: gradle wrapper
-
-      - name: Create Project Files
+      - name: Clean and Recreate Project
+        # 这一步会删掉之前乱掉的旧文件，建立最干净的工程环境
         run: |
+          rm -rf app settings.gradle build.gradle
           mkdir -p app/src/main/java/com/car/game/helper
           mkdir -p app/src/main/res/xml
           
@@ -91,7 +89,7 @@ jobs:
               private void search() {
                   HashMap<String, UsbDevice> list = usbManager.getDeviceList();
                   if (list.isEmpty()) {
-                      Toast.makeText(this, "未检测到设备", Toast.LENGTH_SHORT).show();
+                      Toast.makeText(this, "请插入手柄", Toast.LENGTH_SHORT).show();
                   }
                   for (UsbDevice d : list.values()) {
                       if (!usbManager.hasPermission(d)) {
@@ -103,9 +101,11 @@ jobs:
                   }
               }
               private void launchApp() {
-                  Intent i = getPackageManager().getLaunchIntentForPackage("com.cocav.tiemu");
-                  if (i != null) { startActivity(i); finish(); }
-                  else Toast.makeText(this, "未找到酷咖游戏", Toast.LENGTH_SHORT).show();
+                  try {
+                      Intent i = getPackageManager().getLaunchIntentForPackage("com.cocav.tiemu");
+                      if (i != null) { startActivity(i); finish(); }
+                      else Toast.makeText(this, "未找到酷咖游戏", Toast.LENGTH_SHORT).show();
+                  } catch (Exception e) {}
               }
               protected void onDestroy() { 
                   super.onDestroy(); 
@@ -114,8 +114,10 @@ jobs:
           }
           EOF
 
+      - name: Initialize Gradle
+        run: gradle wrapper
+
       - name: Build APK
-        # 使用刚刚生成的 gradlew 来构建
         run: |
           chmod +x gradlew
           ./gradlew assembleDebug
