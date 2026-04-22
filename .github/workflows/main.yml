@@ -1,4 +1,4 @@
-name: SteamLink_Final_V40
+name: SteamLink_Final_V41
 on: [push, workflow_dispatch]
 
 jobs:
@@ -17,37 +17,19 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Build Project
+      - name: Create Project Files
         run: |
           rm -rf *
           mkdir -p app/src/main/java/com/valvesoftware/steamlink
           mkdir -p app/src/main/res/layout
           mkdir -p app/src/main/res/xml
           mkdir -p app/src/main/res/values
-
+          
           echo "include ':app'" > settings.gradle
-          cat <<'EOF' > build.gradle
-          buildscript {
-              repositories { google(); mavenCentral() }
-              dependencies { classpath 'com.android.tools.build:gradle:7.4.2' }
-          }
-          allprojects { repositories { google(); mavenCentral() } }
-          EOF
+          
+          printf "buildscript {\n    repositories { google(); mavenCentral() }\n    dependencies { classpath 'com.android.tools.build:gradle:7.4.2' }\n}\nallprojects {\n    repositories { google(); mavenCentral() }\n}" > build.gradle
 
-          cat <<'EOF' > app/build.gradle
-          plugins { id 'com.android.application' }
-          android {
-              compileSdk 33
-              namespace "com.valvesoftware.steamlink"
-              defaultConfig {
-                  applicationId "com.valvesoftware.steamlink"
-                  minSdk 21
-                  targetSdk 33
-                  versionCode 40
-                  versionName "4.0"
-              }
-          }
-          EOF
+          printf "plugins { id 'com.android.application' }\nandroid {\n    compileSdk 33\n    namespace 'com.valvesoftware.steamlink'\n    defaultConfig {\n        applicationId 'com.valvesoftware.steamlink'\n        minSdk 21\n        targetSdk 33\n        versionCode 41\n        versionName '4.1'\n    }\n}" > app/build.gradle
 
           echo '<resources><string name="app_name">Steam Link</string></resources>' > app/src/main/res/values/strings.xml
           echo '<?xml version="1.0" encoding="utf-8"?><resources><usb-device /></resources>' > app/src/main/res/xml/usb_device_filter.xml
@@ -56,7 +38,7 @@ jobs:
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
               <uses-feature android:name="android.hardware.usb.host" android:required="false" />
-              <application android:label="@string/app_name" android:icon="@android:drawable/ic_menu_gamepad" android:theme="@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen">
+              <application android:label="@string/app_name" android:theme="@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen">
                   <activity android:name="com.valvesoftware.steamlink.MainActivity" android:exported="true" android:configChanges="orientation|screenSize|keyboard|navigation">
                       <intent-filter>
                           <action android:name="android.intent.action.MAIN" />
@@ -70,19 +52,14 @@ jobs:
 
           cat <<'EOF' > app/src/main/res/layout/activity_main.xml
           <?xml version="1.0" encoding="utf-8"?>
-          <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+          <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
               android:layout_width="match_parent" android:layout_height="match_parent"
-              android:background="#000000">
-              <TextView
-                  android:id="@+id/overlay"
-                  android:layout_width="wrap_content"
-                  android:layout_height="wrap_content"
-                  android:text="FC 游戏核心 (超级玛丽) 已就绪\n请按下手柄 A 键开始"
-                  android:textColor="#00FF00"
-                  android:textSize="24sp"
-                  android:gravity="center"
-                  android:layout_centerInParent="true"/>
-          </RelativeLayout>
+              android:background="#000000" android:gravity="center" android:orientation="vertical">
+              <TextView android:id="@+id/t1" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                  android:text="超级玛丽核心已就绪" android:textColor="#00FF00" android:textSize="25sp" />
+              <TextView android:id="@+id/t2" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                  android:text="请按手柄 A 键开始" android:textColor="#FFFFFF" android:textSize="20sp" />
+          </LinearLayout>
           EOF
 
           cat <<'EOF' > app/src/main/java/com/valvesoftware/steamlink/MainActivity.java
@@ -94,10 +71,38 @@ jobs:
           import android.view.WindowManager;
 
           public class MainActivity extends Activity {
-              private TextView overlay;
+              private TextView t2;
               @Override
               protected void onCreate(Bundle savedInstanceState) {
                   super.onCreate(savedInstanceState);
+                  getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+                  setContentView(R.layout.activity_main);
+                  t2 = findViewById(R.id.t2);
+              }
+              @Override
+              public boolean dispatchKeyEvent(KeyEvent event) {
+                  if (event.getAction() == KeyEvent.ACTION_DOWN) {
+                      int k = event.getKeyCode();
+                      if(k == 96 || k == 23 || k == 66) t2.setText("动作: 跳跃 / 开始");
+                      else if(k == 19) t2.setText("动作: 向上走");
+                      else if(k == 20) t2.setText("动作: 向下走");
+                      else if(k == 21) t2.setText("动作: 向左走");
+                      else if(k == 22) t2.setText("动作: 向右走");
+                      return true;
+                  }
+                  return super.dispatchKeyEvent(event);
+              }
+          }
+          EOF
+
+      - name: Build APK
+        run: chmod +x gradlew && ./gradlew assembleDebug --no-daemon
+
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: SteamLink_Gamer_V41
+          path: app/build/outputs/apk/debug/*.apk
                   getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
                   setContentView(R.layout.activity_main);
                   overlay = findViewById(R.id.overlay);
