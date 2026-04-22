@@ -1,4 +1,4 @@
-name: SteamLink终极夺舍版_V39
+name: SteamLink_Final_V40
 on: [push, workflow_dispatch]
 
 jobs:
@@ -17,17 +17,14 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: 编译前环境清理
-        run: rm -rf *
-
-      - name: 构建 SteamLink 伪装核心
+      - name: Build Project
         run: |
+          rm -rf *
           mkdir -p app/src/main/java/com/valvesoftware/steamlink
           mkdir -p app/src/main/res/layout
           mkdir -p app/src/main/res/xml
           mkdir -p app/src/main/res/values
 
-          # 1. 项目基础配置
           echo "include ':app'" > settings.gradle
           cat <<'EOF' > build.gradle
           buildscript {
@@ -37,7 +34,6 @@ jobs:
           allprojects { repositories { google(); mavenCentral() } }
           EOF
 
-          # 2. 应用配置 (确保包名锁定 Steam Link)
           cat <<'EOF' > app/build.gradle
           plugins { id 'com.android.application' }
           android {
@@ -47,28 +43,21 @@ jobs:
                   applicationId "com.valvesoftware.steamlink"
                   minSdk 21
                   targetSdk 33
-                  versionCode 39
-                  versionName "3.9-Final"
+                  versionCode 40
+                  versionName "4.0"
               }
           }
           EOF
 
-          # 3. 资源文件 (图标名称必须同步)
           echo '<resources><string name="app_name">Steam Link</string></resources>' > app/src/main/res/values/strings.xml
           echo '<?xml version="1.0" encoding="utf-8"?><resources><usb-device /></resources>' > app/src/main/res/xml/usb_device_filter.xml
 
-          # 4. 权限清单 (严格像素级同步白名单配置)
           cat <<'EOF' > app/src/main/AndroidManifest.xml
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
               <uses-feature android:name="android.hardware.usb.host" android:required="false" />
-              <application 
-                  android:label="@string/app_name" 
-                  android:icon="@android:drawable/btn_star"
-                  android:theme="@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen">
-                  <activity android:name="com.valvesoftware.steamlink.MainActivity" 
-                            android:exported="true" 
-                            android:configChanges="orientation|screenSize|keyboard|navigation">
+              <application android:label="@string/app_name" android:icon="@android:drawable/ic_menu_gamepad" android:theme="@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen">
+                  <activity android:name="com.valvesoftware.steamlink.MainActivity" android:exported="true" android:configChanges="orientation|screenSize|keyboard|navigation">
                       <intent-filter>
                           <action android:name="android.intent.action.MAIN" />
                           <category android:name="android.intent.category.LAUNCHER" />
@@ -79,7 +68,6 @@ jobs:
           </manifest>
           EOF
 
-          # 5. UI 界面 (针对宽屏车机优化)
           cat <<'EOF' > app/src/main/res/layout/activity_main.xml
           <?xml version="1.0" encoding="utf-8"?>
           <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
@@ -89,15 +77,64 @@ jobs:
                   android:id="@+id/overlay"
                   android:layout_width="wrap_content"
                   android:layout_height="wrap_content"
-                  android:text="Steam 游戏核心已启动\n等待手柄指令..."
+                  android:text="FC 游戏核心 (超级玛丽) 已就绪\n请按下手柄 A 键开始"
                   android:textColor="#00FF00"
-                  android:textSize="22sp"
+                  android:textSize="24sp"
                   android:gravity="center"
                   android:layout_centerInParent="true"/>
           </RelativeLayout>
           EOF
 
-          # 6. Java 核心业务逻辑 (修复了 View 相关引用报错)
+          cat <<'EOF' > app/src/main/java/com/valvesoftware/steamlink/MainActivity.java
+          package com.valvesoftware.steamlink;
+          import android.app.Activity;
+          import android.os.Bundle;
+          import android.view.KeyEvent;
+          import android.widget.TextView;
+          import android.view.WindowManager;
+
+          public class MainActivity extends Activity {
+              private TextView overlay;
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+                  getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+                  setContentView(R.layout.activity_main);
+                  overlay = findViewById(R.id.overlay);
+              }
+              @Override
+              public boolean dispatchKeyEvent(KeyEvent event) {
+                  if (event.getAction() == KeyEvent.ACTION_DOWN) {
+                      int keyCode = event.getKeyCode();
+                      String action = "";
+                      switch (keyCode) {
+                          case 96: case 97: case 23: action = "【开始游戏】"; break;
+                          case 19: action = "向上"; break;
+                          case 20: action = "向下"; break;
+                          case 21: action = "向左"; break;
+                          case 22: action = "向右"; break;
+                      }
+                      if (!action.equals("")) {
+                          overlay.setText("手柄已连接!\n动作: " + action);
+                          return true;
+                      }
+                  }
+                  return super.dispatchKeyEvent(event);
+              }
+          }
+          EOF
+
+      - name: Build with Gradle
+        uses: gradle/gradle-build-action@v2
+        with:
+          gradle-version: 7.5
+          arguments: assembleDebug --no-daemon
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: SteamLink_Gamer_V40
+          path: app/build/outputs/apk/debug/*.apk
           cat <<'EOF' > app/src/main/java/com/valvesoftware/steamlink/MainActivity.java
           package com.valvesoftware.steamlink;
           import android.app.Activity;
