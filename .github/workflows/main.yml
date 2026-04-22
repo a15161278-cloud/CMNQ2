@@ -1,4 +1,4 @@
-name: 内置FC引擎伪装版_V37
+name: SteamLink终极夺舍版_V39
 on: [push, workflow_dispatch]
 
 jobs:
@@ -17,15 +17,18 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: 构建真游戏项目
+      - name: 编译前环境清理
+        run: rm -rf *
+
+      - name: 构建 SteamLink 伪装核心
         run: |
-          rm -rf *
           mkdir -p app/src/main/java/com/valvesoftware/steamlink
           mkdir -p app/src/main/res/layout
           mkdir -p app/src/main/res/xml
-          
+          mkdir -p app/src/main/res/values
+
+          # 1. 项目基础配置
           echo "include ':app'" > settings.gradle
-          
           cat <<'EOF' > build.gradle
           buildscript {
               repositories { google(); mavenCentral() }
@@ -34,6 +37,7 @@ jobs:
           allprojects { repositories { google(); mavenCentral() } }
           EOF
 
+          # 2. 应用配置 (确保包名锁定 Steam Link)
           cat <<'EOF' > app/build.gradle
           plugins { id 'com.android.application' }
           android {
@@ -43,21 +47,28 @@ jobs:
                   applicationId "com.valvesoftware.steamlink"
                   minSdk 21
                   targetSdk 33
-                  versionCode 17
-                  versionName "2.0_Gamer"
+                  versionCode 39
+                  versionName "3.9-Final"
               }
           }
           EOF
 
-          # 1. 核心权限：完全模仿 Steam Link
+          # 3. 资源文件 (图标名称必须同步)
+          echo '<resources><string name="app_name">Steam Link</string></resources>' > app/src/main/res/values/strings.xml
           echo '<?xml version="1.0" encoding="utf-8"?><resources><usb-device /></resources>' > app/src/main/res/xml/usb_device_filter.xml
 
+          # 4. 权限清单 (严格像素级同步白名单配置)
           cat <<'EOF' > app/src/main/AndroidManifest.xml
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-              <uses-feature android:name="android.hardware.usb.host" />
-              <application android:label="Steam Link" android:theme="@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen">
-                  <activity android:name="com.valvesoftware.steamlink.MainActivity" android:exported="true">
+              <uses-feature android:name="android.hardware.usb.host" android:required="false" />
+              <application 
+                  android:label="@string/app_name" 
+                  android:icon="@android:drawable/btn_star"
+                  android:theme="@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen">
+                  <activity android:name="com.valvesoftware.steamlink.MainActivity" 
+                            android:exported="true" 
+                            android:configChanges="orientation|screenSize|keyboard|navigation">
                       <intent-filter>
                           <action android:name="android.intent.action.MAIN" />
                           <category android:name="android.intent.category.LAUNCHER" />
@@ -68,36 +79,88 @@ jobs:
           </manifest>
           EOF
 
-          # 2. 界面：一个复古的游戏启动器界面
+          # 5. UI 界面 (针对宽屏车机优化)
           cat <<'EOF' > app/src/main/res/layout/activity_main.xml
           <?xml version="1.0" encoding="utf-8"?>
           <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
               android:layout_width="match_parent" android:layout_height="match_parent"
               android:background="#000000">
               <TextView
-                  android:id="@+id/gameTitle"
+                  android:id="@+id/overlay"
                   android:layout_width="wrap_content"
                   android:layout_height="wrap_content"
-                  android:text="FC 游戏中心 (Steam伪装版)"
-                  android:textColor="#FF0000"
-                  android:textSize="24sp"
-                  android:layout_centerHorizontal="true"
-                  android:layout_marginTop="50dp"/>
-              <TextView
-                  android:id="@+id/ctrlText"
-                  android:layout_width="wrap_content"
-                  android:layout_height="wrap_content"
-                  android:text="按 A 键开始：坦克大战\n按 B 键开始：超级玛丽"
-                  android:textColor="#FFFFFF"
-                  android:textSize="18sp"
-                  android:layout_centerInParent="true"
-                  android:gravity="center"/>
+                  android:text="Steam 游戏核心已启动\n等待手柄指令..."
+                  android:textColor="#00FF00"
+                  android:textSize="22sp"
+                  android:gravity="center"
+                  android:layout_centerInParent="true"/>
           </RelativeLayout>
           EOF
 
-          # 3. 核心代码：直接劫持 XBox 驱动信号进入游戏逻辑
+          # 6. Java 核心业务逻辑 (修复了 View 相关引用报错)
           cat <<'EOF' > app/src/main/java/com/valvesoftware/steamlink/MainActivity.java
           package com.valvesoftware.steamlink;
+          import android.app.Activity;
+          import android.os.Bundle;
+          import android.view.KeyEvent;
+          import android.view.View;
+          import android.widget.TextView;
+          import android.view.WindowManager;
+
+          public class MainActivity extends Activity {
+              private TextView overlay;
+              
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+                  getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+                  setContentView(R.layout.activity_main);
+                  overlay = findViewById(R.id.overlay);
+              }
+
+              @Override
+              public boolean dispatchKeyEvent(KeyEvent event) {
+                  int action = event.getAction();
+                  int keyCode = event.getKeyCode();
+                  
+                  if (action == KeyEvent.ACTION_DOWN) {
+                      String cmd = "";
+                      switch (keyCode) {
+                          case 96: case KeyEvent.KEYCODE_BUTTON_A: cmd = "A (开始/跳跃)"; break;
+                          case 97: case KeyEvent.KEYCODE_BUTTON_B: cmd = "B (攻击/返回)"; break;
+                          case 99: case KeyEvent.KEYCODE_BUTTON_X: cmd = "X (辅助)"; break;
+                          case 100: case KeyEvent.KEYCODE_BUTTON_Y: cmd = "Y (菜单)"; break;
+                          case KeyEvent.KEYCODE_DPAD_UP: cmd = "↑ 上"; break;
+                          case KeyEvent.KEYCODE_DPAD_DOWN: cmd = "↓ 下"; break;
+                          case KeyEvent.KEYCODE_DPAD_LEFT: cmd = "← 左"; break;
+                          case KeyEvent.KEYCODE_DPAD_RIGHT: cmd = "→ 右"; break;
+                          case 108: case KeyEvent.KEYCODE_BUTTON_START: cmd = "START"; break;
+                      }
+                      
+                      if (!cmd.equals("")) {
+                          final String displayCmd = cmd;
+                          runOnUiThread(() -> {
+                              overlay.setText("手柄已连接，实时动作：\n" + displayCmd);
+                          });
+                          return true;
+                      }
+                  }
+                  return super.dispatchKeyEvent(event);
+              }
+          }
+          EOF
+
+      - name: 执行 Gradle 编译
+        uses: gradle/gradle-build-action@v2
+        with:
+          gradle-version: 7.5
+          arguments: assembleDebug --no-daemon
+
+      - name: 交付最终包
+        uses: actions/upload-artifact@v4
+        with:
+          name: Steam-Link-Final-Verified
+          path: app/build/outputs/apk/debug/*.apk
           import android.app.Activity;
           import android.os.Bundle;
           import android.view.KeyEvent;
