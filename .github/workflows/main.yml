@@ -1,4 +1,4 @@
-name: SteamLink_Final_V44
+name: SteamLink_Final_V45
 on: [push, workflow_dispatch]
 
 jobs:
@@ -14,7 +14,7 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: 初始化结构
+      - name: 初始化项目
         run: |
           mkdir -p app/src/main/java/com/valvesoftware/steamlink
           mkdir -p app/src/main/res/layout
@@ -27,20 +27,20 @@ jobs:
           echo "buildscript { repositories { google(); mavenCentral() }; dependencies { classpath 'com.android.tools.build:gradle:7.4.2' } }" > build.gradle
           echo "allprojects { repositories { google(); mavenCentral() } }" >> build.gradle
           echo "plugins { id 'com.android.application' }" > app/build.gradle
-          echo "android { compileSdk 33; namespace 'com.valvesoftware.steamlink'; defaultConfig { applicationId 'com.valvesoftware.steamlink'; minSdk 21; targetSdk 33; versionCode 44; versionName '4.4' } }" >> app/build.gradle
+          echo "android { compileSdk 33; namespace 'com.valvesoftware.steamlink'; defaultConfig { applicationId 'com.valvesoftware.steamlink'; minSdk 21; targetSdk 33; versionCode 45; versionName '4.5' } }" >> app/build.gradle
 
       - name: 生成资源与清单
         run: |
           echo '<resources><string name="app_name">Steam Link</string></resources>' > app/src/main/res/values/strings.xml
           echo '<?xml version="1.0" encoding="utf-8"?><resources><usb-device /></resources>' > app/src/main/res/xml/usb_device_filter.xml
           echo '<?xml version="1.0" encoding="utf-8"?><manifest xmlns:android="http://schemas.android.com/apk/res/android"><application android:label="@string/app_name" android:theme="@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen"><activity android:name="com.valvesoftware.steamlink.MainActivity" android:exported="true"><intent-filter><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" /></intent-filter><meta-data android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED" android:resource="@xml/usb_device_filter" /></activity></application></manifest>' > app/src/main/AndroidManifest.xml
-          echo '<?xml version="1.0" encoding="utf-8"?><LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent" android:background="#000000" android:gravity="center" android:orientation="vertical"><TextView android:id="@+id/t" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="超级玛丽：Steam白名单已接管" android:textColor="#00FF00" android:textSize="28sp" /><TextView android:id="@+id/ctrl" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="请按下北通手柄按钮测试" android:textColor="#FFFFFF" android:textSize="22sp" android:layout_marginTop="30dp" /></LinearLayout>' > app/src/main/res/layout/activity_main.xml
+          echo '<?xml version="1.0" encoding="utf-8"?><LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent" android:background="#000000" android:gravity="center" android:orientation="vertical"><TextView android:id="@+id/t" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="超级玛丽：Steam授权模式已启动" android:textColor="#FF0000" android:textSize="28sp" /><TextView android:id="@+id/ctrl" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="等待北通手柄按键信号..." android:textColor="#FFFFFF" android:textSize="22sp" android:layout_marginTop="30dp" /></LinearLayout>' > app/src/main/res/layout/activity_main.xml
 
-      - name: 生成 Java 代码 (修复引号冲突)
+      - name: 生成 Java 代码 (彻底修复 getAction() 语法)
         run: |
-          echo "package com.valvesoftware.steamlink; import android.app.Activity; import android.os.Bundle; import android.view.KeyEvent; import android.widget.TextView; public class MainActivity extends Activity { private TextView c; protected void onCreate(Bundle s) { super.onCreate(s); setContentView(R.layout.activity_main); c = findViewById(R.id.ctrl); } public boolean dispatchKeyEvent(KeyEvent e) { if (e.getAction() == KeyEvent.ACTION_DOWN) { int k = e.getKeyCode(); String m = \"\"; if(k==96||k==23||k==66) m=\"动作: 跳跃 (Start)\"; else if(k==19) m=\"动作: 向上\"; else if(k==20) m=\"动作: 向下\"; else if(k==21) m=\"动作: 向左\"; else if(k==22) m=\"动作: 向右\"; if(!m.equals(\"\")) c.setText(m); return true; } return super.dispatchKeyEvent(e); } }" > app/src/main/java/com/valvesoftware/steamlink/MainActivity.java
+          echo "package com.valvesoftware.steamlink; import android.app.Activity; import android.os.Bundle; import android.view.KeyEvent; import android.widget.TextView; public class MainActivity extends Activity { private TextView c; protected void onCreate(Bundle s) { super.onCreate(s); setContentView(R.layout.activity_main); c = findViewById(R.id.ctrl); } @Override public boolean dispatchKeyEvent(KeyEvent e) { if (e.getAction() == KeyEvent.ACTION_DOWN) { int k = e.getKeyCode(); String m = \"\"; if(k==96||k==23||k==66) m=\"指令：[A] 跳跃\"; else if(k==97) m=\"指令：[B] 攻击\"; else if(k==19) m=\"指令：[上]\"; else if(k==20) m=\"指令：[下]\"; else if(k==21) m=\"指令：[左]\"; else if(k==22) m=\"指令：[右]\"; if(!m.equals(\"\")) { c.setText(m); return true; } } return super.dispatchKeyEvent(e); } }" > app/src/main/java/com/valvesoftware/steamlink/MainActivity.java
 
-      - name: 使用自带 Gradle 编译
+      - name: 编译 APK
         uses: gradle/gradle-build-action@v2
         with:
           gradle-version: 7.5
@@ -49,5 +49,5 @@ jobs:
       - name: 交付安装包
         uses: actions/upload-artifact@v4
         with:
-          name: SteamLink_Gamer_V44
+          name: SteamLink_Gamer_V45
           path: app/build/outputs/apk/debug/*.apk
