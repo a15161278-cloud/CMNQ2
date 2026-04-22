@@ -1,4 +1,4 @@
-name: SteamLink_Stable_V42
+name: SteamLink_Final_V43
 on: [push, workflow_dispatch]
 
 jobs:
@@ -14,42 +14,43 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Create Structure
+      - name: 强制安装 Gradle 7.5
+        run: |
+          wget -q https://services.gradle.org/distributions/gradle-7.5-bin.zip
+          unzip -q gradle-7.5-bin.zip
+          echo "$(pwd)/gradle-7.5/bin" >> $GITHUB_PATH
+
+      - name: 初始化项目结构
         run: |
           mkdir -p app/src/main/java/com/valvesoftware/steamlink
           mkdir -p app/src/main/res/layout
           mkdir -p app/src/main/res/xml
           mkdir -p app/src/main/res/values
 
-      - name: Generate Configs
+      - name: 生成配置文件
         run: |
           echo "include ':app'" > settings.gradle
           echo "buildscript { repositories { google(); mavenCentral() }; dependencies { classpath 'com.android.tools.build:gradle:7.4.2' } }" > build.gradle
           echo "allprojects { repositories { google(); mavenCentral() } }" >> build.gradle
-          
           echo "plugins { id 'com.android.application' }" > app/build.gradle
-          echo "android { compileSdk 33; namespace 'com.valvesoftware.steamlink'; defaultConfig { applicationId 'com.valvesoftware.steamlink'; minSdk 21; targetSdk 33; versionCode 42; versionName '4.2' } }" >> app/build.gradle
+          echo "android { compileSdk 33; namespace 'com.valvesoftware.steamlink'; defaultConfig { applicationId 'com.valvesoftware.steamlink'; minSdk 21; targetSdk 33; versionCode 43; versionName '4.3' } }" >> app/build.gradle
 
-      - name: Generate Resources
+      - name: 生成资源与权限
         run: |
           echo '<resources><string name="app_name">Steam Link</string></resources>' > app/src/main/res/values/strings.xml
           echo '<?xml version="1.0" encoding="utf-8"?><resources><usb-device /></resources>' > app/src/main/res/xml/usb_device_filter.xml
-          echo '<?xml version="1.0" encoding="utf-8"?><LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent" android:background="#000000" android:gravity="center" android:orientation="vertical"><TextView android:id="@+id/t1" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="游戏内核：超级玛丽" android:textColor="#00FF00" android:textSize="26sp" /><TextView android:id="@+id/t2" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="请按手柄 A 键开始" android:textColor="#FFFFFF" android:textSize="20sp" android:layout_marginTop="20dp" /></LinearLayout>' > app/src/main/res/layout/activity_main.xml
-
-      - name: Generate Manifest
-        run: |
           echo '<?xml version="1.0" encoding="utf-8"?><manifest xmlns:android="http://schemas.android.com/apk/res/android"><application android:label="@string/app_name" android:theme="@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen"><activity android:name="com.valvesoftware.steamlink.MainActivity" android:exported="true"><intent-filter><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" /></intent-filter><meta-data android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED" android:resource="@xml/usb_device_filter" /></activity></application></manifest>' > app/src/main/AndroidManifest.xml
+          echo '<?xml version="1.0" encoding="utf-8"?><LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent" android:background="#000000" android:gravity="center" android:orientation="vertical"><TextView android:id="@+id/t" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="超级玛丽核心已就绪" android:textColor="#00FF00" android:textSize="28sp" /><TextView android:id="@+id/ctrl" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="请按下北通手柄 A 键开始" android:textColor="#FFFFFF" android:textSize="20sp" android:layout_marginTop="30dp" /></LinearLayout>' > app/src/main/res/layout/activity_main.xml
 
-      - name: Generate Java Code
+      - name: 生成游戏逻辑代码
         run: |
-          echo "package com.valvesoftware.steamlink; import android.app.Activity; import android.os.Bundle; import android.view.KeyEvent; import android.widget.TextView; public class MainActivity extends Activity { private TextView t2; protected void onCreate(Bundle s) { super.onCreate(s); setContentView(R.layout.activity_main); t2 = findViewById(R.id.t2); } public boolean dispatchKeyEvent(KeyEvent e) { if (e.getAction() == KeyEvent.ACTION_DOWN) { int k = e.getKeyCode(); if(k==96||k==23||k==66) t2.setText('动作: 跳跃/开始'); else if(k==19) t2.setText('动作: 向上'); else if(k==20) t2.setText('动作: 向下'); else if(k==21) t2.setText('动作: 向左'); else if(k==22) t2.setText('动作: 向右'); return true; } return super.dispatchKeyEvent(e); } }" > app/src/main/java/com/valvesoftware/steamlink/MainActivity.java
+          echo "package com.valvesoftware.steamlink; import android.app.Activity; import android.os.Bundle; import android.view.KeyEvent; import android.widget.TextView; public class MainActivity extends Activity { private TextView c; protected void onCreate(Bundle s) { super.onCreate(s); setContentView(R.layout.activity_main); c = findViewById(R.id.ctrl); } public boolean dispatchKeyEvent(KeyEvent e) { if (e.getAction() == KeyEvent.ACTION_DOWN) { int k = e.getKeyCode(); String m = ''; if(k==96||k==23||k==66) m='动作: 跳跃 (Start)'; else if(k==19) m='动作: 向上'; else if(k==20) m='动作: 向下'; else if(k==21) m='动作: 向左'; else if(k==22) m='动作: 向右'; if(!m.equals('')) c.setText(m); return true; } return super.dispatchKeyEvent(e); } }" > app/src/main/java/com/valvesoftware/steamlink/MainActivity.java
 
-      - name: Build
-        run: |
-          gradle assembleDebug --no-daemon
+      - name: 执行强制编译
+        run: gradle assembleDebug --no-daemon
 
-      - name: Upload
+      - name: 交付安装包
         uses: actions/upload-artifact@v4
         with:
-          name: SteamLink_Final_V42
+          name: SteamLink_Gamer_V43
           path: app/build/outputs/apk/debug/*.apk
