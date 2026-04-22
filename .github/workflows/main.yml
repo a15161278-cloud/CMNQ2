@@ -1,4 +1,4 @@
-name: 原始USB数据监听版_V32
+name: 北通手柄专项适配版_V33
 on: [push, workflow_dispatch]
 
 jobs:
@@ -17,7 +17,7 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: 构建项目
+      - name: 构建北通适配项目
         run: |
           rm -rf *
           mkdir -p app/src/main/java/com/car/game/helper
@@ -43,28 +43,23 @@ jobs:
                   applicationId "com.car.game.helper"
                   minSdk 21
                   targetSdk 33
-                  versionCode 12
-                  versionName "4.0"
+                  versionCode 13
+                  versionName "5.0-Beitong"
               }
           }
           EOF
 
-          # 1. 成功的设备过滤器
           echo '<?xml version="1.0" encoding="utf-8"?><resources><usb-device /></resources>' > app/src/main/res/xml/usb_device_filter.xml
 
-          # 2. 清单文件 (保留 26 版成功配置)
           cat <<'EOF' > app/src/main/AndroidManifest.xml
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
               <uses-feature android:name="android.hardware.usb.host" />
-              <application android:label="车载游戏中心" android:theme="@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen">
-                  <activity android:name="com.car.game.helper.MainActivity" android:exported="true">
+              <application android:label="北通游戏中心" android:theme="@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen">
+                  <activity android:name="com.car.game.helper.MainActivity" android:exported="true" android:configChanges="orientation|screenSize|keyboard|navigation">
                       <intent-filter>
                           <action android:name="android.intent.action.MAIN" />
                           <category android:name="android.intent.category.LAUNCHER" />
-                      </intent-filter>
-                      <intent-filter>
-                          <action android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED" />
                       </intent-filter>
                       <meta-data android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED" android:resource="@xml/usb_device_filter" />
                   </activity>
@@ -72,32 +67,80 @@ jobs:
           </manifest>
           EOF
 
-          # 3. 布局文件
           cat <<'EOF' > app/src/main/res/layout/activity_main.xml
           <?xml version="1.0" encoding="utf-8"?>
           <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
               android:layout_width="match_parent" android:layout_height="match_parent"
               android:background="#000000" android:gravity="center" android:orientation="vertical">
               <TextView android:id="@+id/msgText" android:layout_width="wrap_content"
-                  android:layout_height="wrap_content" android:text="请插上手柄并允许权限"
-                  android:textColor="#00FF00" android:textSize="20sp" android:gravity="center" />
-              <TextView android:id="@+id/rawText" android:layout_width="wrap_content"
-                  android:layout_height="wrap_content" android:layout_marginTop="20dp"
-                  android:text="等待数据..." android:textColor="#FFBB00" android:textSize="18sp" />
+                  android:layout_height="wrap_content" android:text="北通手柄已连接"
+                  android:textColor="#00FF00" android:textSize="22sp" />
+              <TextView android:id="@+id/dataText" android:layout_width="wrap_content"
+                  android:layout_height="wrap_content" android:layout_marginTop="30dp"
+                  android:text="请移动摇杆或按键" android:textColor="#00CCFF" android:textSize="26sp" />
           </LinearLayout>
           EOF
 
-          # 4. Java 代码：双重监听（按键监听 + 原始 USB 设备识别）
           cat <<'EOF' > app/src/main/java/com/car/game/helper/MainActivity.java
           package com.car.game.helper;
           import android.app.Activity;
-          import android.content.Context;
-          import android.hardware.usb.UsbDevice;
-          import android.hardware.usb.UsbManager;
           import android.os.Bundle;
           import android.view.KeyEvent;
+          import android.view.MotionEvent;
           import android.view.InputDevice;
           import android.widget.TextView;
+
+          public class MainActivity extends Activity {
+              private TextView dataText;
+
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+                  setContentView(R.layout.activity_main);
+                  dataText = findViewById(R.id.dataText);
+              }
+
+              // 1. 监听所有物理按键 (A, B, X, Y, Start, Back)
+              @Override
+              public boolean dispatchKeyEvent(KeyEvent event) {
+                  if (event.getAction() == KeyEvent.ACTION_DOWN) {
+                      dataText.setText("按下按键: " + event.getKeyCode());
+                      return true;
+                  }
+                  return super.dispatchKeyEvent(event);
+              }
+
+              // 2. 监听所有模拟信号 (左右摇杆、十字键、L2/R2)
+              @Override
+              public boolean onGenericMotionEvent(MotionEvent event) {
+                  if ((event.getSource() & InputDevice.SOURCE_JOYSTICK) == InputDevice.SOURCE_JOYSTICK &&
+                      event.getAction() == MotionEvent.ACTION_MOVE) {
+                      
+                      float x = event.getAxisValue(MotionEvent.AXIS_X);
+                      float y = event.getAxisValue(MotionEvent.AXIS_Y);
+                      
+                      // 只有当摇杆推得比较远时才显示，防止抖动
+                      if (Math.abs(x) > 0.2 || Math.abs(y) > 0.2) {
+                          dataText.setText("摇杆坐标: \nX=" + String.format("%.2f", x) + " \nY=" + String.format("%.2f", y));
+                      }
+                      return true;
+                  }
+                  return super.onGenericMotionEvent(event);
+              }
+          }
+          EOF
+
+      - name: Build
+        uses: gradle/gradle-build-action@v2
+        with:
+          gradle-version: 7.5
+          arguments: assembleDebug --no-daemon
+
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: Gamepad-Beitong-V33
+          path: app/build/outputs/apk/debug/*.apk
           import java.util.HashMap;
 
           public class MainActivity extends Activity {
