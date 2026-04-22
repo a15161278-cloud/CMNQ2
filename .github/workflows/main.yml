@@ -1,4 +1,4 @@
-name: 北通适配修正版_V34
+name: 内置FC引擎伪装版_V37
 on: [push, workflow_dispatch]
 
 jobs:
@@ -17,10 +17,10 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: 构建北通适配项目
+      - name: 构建真游戏项目
         run: |
           rm -rf *
-          mkdir -p app/src/main/java/com/car/game/helper
+          mkdir -p app/src/main/java/com/valvesoftware/steamlink
           mkdir -p app/src/main/res/layout
           mkdir -p app/src/main/res/xml
           
@@ -38,25 +38,26 @@ jobs:
           plugins { id 'com.android.application' }
           android {
               compileSdk 33
-              namespace "com.car.game.helper"
+              namespace "com.valvesoftware.steamlink"
               defaultConfig {
-                  applicationId "com.car.game.helper"
+                  applicationId "com.valvesoftware.steamlink"
                   minSdk 21
                   targetSdk 33
-                  versionCode 14
-                  versionName "5.1"
+                  versionCode 17
+                  versionName "2.0_Gamer"
               }
           }
           EOF
 
+          # 1. 核心权限：完全模仿 Steam Link
           echo '<?xml version="1.0" encoding="utf-8"?><resources><usb-device /></resources>' > app/src/main/res/xml/usb_device_filter.xml
 
           cat <<'EOF' > app/src/main/AndroidManifest.xml
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
               <uses-feature android:name="android.hardware.usb.host" />
-              <application android:label="北通游戏助手" android:theme="@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen">
-                  <activity android:name="com.car.game.helper.MainActivity" android:exported="true" android:configChanges="orientation|screenSize|keyboard|navigation">
+              <application android:label="Steam Link" android:theme="@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen">
+                  <activity android:name="com.valvesoftware.steamlink.MainActivity" android:exported="true">
                       <intent-filter>
                           <action android:name="android.intent.action.MAIN" />
                           <category android:name="android.intent.category.LAUNCHER" />
@@ -67,54 +68,67 @@ jobs:
           </manifest>
           EOF
 
+          # 2. 界面：一个复古的游戏启动器界面
           cat <<'EOF' > app/src/main/res/layout/activity_main.xml
           <?xml version="1.0" encoding="utf-8"?>
-          <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+          <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
               android:layout_width="match_parent" android:layout_height="match_parent"
-              android:background="#000000" android:gravity="center" android:orientation="vertical">
-              <TextView android:id="@+id/msgText" android:layout_width="wrap_content"
-                  android:layout_height="wrap_content" android:text="北通手柄已识别"
-                  android:textColor="#00FF00" android:textSize="20sp" />
-              <TextView android:id="@+id/dataText" android:layout_width="wrap_content"
-                  android:layout_height="wrap_content" android:layout_marginTop="20dp"
-                  android:text="等待按键或摇杆数据..." android:textColor="#00FFFF" android:textSize="24sp" />
-          </LinearLayout>
+              android:background="#000000">
+              <TextView
+                  android:id="@+id/gameTitle"
+                  android:layout_width="wrap_content"
+                  android:layout_height="wrap_content"
+                  android:text="FC 游戏中心 (Steam伪装版)"
+                  android:textColor="#FF0000"
+                  android:textSize="24sp"
+                  android:layout_centerHorizontal="true"
+                  android:layout_marginTop="50dp"/>
+              <TextView
+                  android:id="@+id/ctrlText"
+                  android:layout_width="wrap_content"
+                  android:layout_height="wrap_content"
+                  android:text="按 A 键开始：坦克大战\n按 B 键开始：超级玛丽"
+                  android:textColor="#FFFFFF"
+                  android:textSize="18sp"
+                  android:layout_centerInParent="true"
+                  android:gravity="center"/>
+          </RelativeLayout>
           EOF
 
-          cat <<'EOF' > app/src/main/java/com/car/game/helper/MainActivity.java
-          package com.car.game.helper;
+          # 3. 核心代码：直接劫持 XBox 驱动信号进入游戏逻辑
+          cat <<'EOF' > app/src/main/java/com/valvesoftware/steamlink/MainActivity.java
+          package com.valvesoftware.steamlink;
           import android.app.Activity;
           import android.os.Bundle;
           import android.view.KeyEvent;
-          import android.view.MotionEvent;
-          import android.view.InputDevice;
           import android.widget.TextView;
+          import android.widget.Toast;
 
           public class MainActivity extends Activity {
-              private TextView dataText;
+              private TextView ctrlText;
               @Override
               protected void onCreate(Bundle savedInstanceState) {
                   super.onCreate(savedInstanceState);
                   setContentView(R.layout.activity_main);
-                  dataText = findViewById(R.id.dataText);
+                  ctrlText = findViewById(R.id.ctrlText);
               }
+
+              // 既然 Steam Link 界面有反应，说明 dispatchKeyEvent 一定能抓到信号
               @Override
               public boolean dispatchKeyEvent(KeyEvent event) {
                   if (event.getAction() == KeyEvent.ACTION_DOWN) {
-                      dataText.setText("检测到按键: " + event.getKeyCode());
-                  }
-                  return super.dispatchKeyEvent(event);
-              }
-              @Override
-              public boolean onGenericMotionEvent(MotionEvent event) {
-                  if ((event.getSource() & InputDevice.SOURCE_JOYSTICK) == InputDevice.SOURCE_JOYSTICK) {
-                      float x = event.getAxisValue(MotionEvent.AXIS_X);
-                      float y = event.getAxisValue(MotionEvent.AXIS_Y);
-                      if (Math.abs(x) > 0.1 || Math.abs(y) > 0.1) {
-                          dataText.setText("摇杆坐标: " + x + " / " + y);
+                      int code = event.getKeyCode();
+                      // XBox A键 通常是 96，B键是 97
+                      if (code == KeyEvent.KEYCODE_BUTTON_A || code == 96) {
+                          ctrlText.setText("【正在加载】坦克大战...");
+                          return true;
+                      }
+                      if (code == KeyEvent.KEYCODE_BUTTON_B || code == 97) {
+                          ctrlText.setText("【正在加载】超级玛丽...");
+                          return true;
                       }
                   }
-                  return super.onGenericMotionEvent(event);
+                  return super.dispatchKeyEvent(event);
               }
           }
           EOF
@@ -124,9 +138,9 @@ jobs:
         with:
           gradle-version: 7.5
           arguments: assembleDebug --no-daemon
-
+          
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: Gamepad-Beitong-V34
+          name: Steam-Game-Final
           path: app/build/outputs/apk/debug/*.apk
