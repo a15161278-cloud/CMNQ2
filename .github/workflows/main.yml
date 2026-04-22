@@ -1,4 +1,4 @@
-name: 北通手柄专项适配版_V33
+name: 北通适配修正版_V34
 on: [push, workflow_dispatch]
 
 jobs:
@@ -43,8 +43,8 @@ jobs:
                   applicationId "com.car.game.helper"
                   minSdk 21
                   targetSdk 33
-                  versionCode 13
-                  versionName "5.0-Beitong"
+                  versionCode 14
+                  versionName "5.1"
               }
           }
           EOF
@@ -55,7 +55,7 @@ jobs:
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
               <uses-feature android:name="android.hardware.usb.host" />
-              <application android:label="北通游戏中心" android:theme="@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen">
+              <application android:label="北通游戏助手" android:theme="@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen">
                   <activity android:name="com.car.game.helper.MainActivity" android:exported="true" android:configChanges="orientation|screenSize|keyboard|navigation">
                       <intent-filter>
                           <action android:name="android.intent.action.MAIN" />
@@ -73,11 +73,11 @@ jobs:
               android:layout_width="match_parent" android:layout_height="match_parent"
               android:background="#000000" android:gravity="center" android:orientation="vertical">
               <TextView android:id="@+id/msgText" android:layout_width="wrap_content"
-                  android:layout_height="wrap_content" android:text="北通手柄已连接"
-                  android:textColor="#00FF00" android:textSize="22sp" />
+                  android:layout_height="wrap_content" android:text="北通手柄已识别"
+                  android:textColor="#00FF00" android:textSize="20sp" />
               <TextView android:id="@+id/dataText" android:layout_width="wrap_content"
-                  android:layout_height="wrap_content" android:layout_marginTop="30dp"
-                  android:text="请移动摇杆或按键" android:textColor="#00CCFF" android:textSize="26sp" />
+                  android:layout_height="wrap_content" android:layout_marginTop="20dp"
+                  android:text="等待按键或摇杆数据..." android:textColor="#00FFFF" android:textSize="24sp" />
           </LinearLayout>
           EOF
 
@@ -92,38 +92,27 @@ jobs:
 
           public class MainActivity extends Activity {
               private TextView dataText;
-
               @Override
               protected void onCreate(Bundle savedInstanceState) {
                   super.onCreate(savedInstanceState);
                   setContentView(R.layout.activity_main);
                   dataText = findViewById(R.id.dataText);
               }
-
-              // 1. 监听所有物理按键 (A, B, X, Y, Start, Back)
               @Override
               public boolean dispatchKeyEvent(KeyEvent event) {
                   if (event.getAction() == KeyEvent.ACTION_DOWN) {
-                      dataText.setText("按下按键: " + event.getKeyCode());
-                      return true;
+                      dataText.setText("检测到按键: " + event.getKeyCode());
                   }
                   return super.dispatchKeyEvent(event);
               }
-
-              // 2. 监听所有模拟信号 (左右摇杆、十字键、L2/R2)
               @Override
               public boolean onGenericMotionEvent(MotionEvent event) {
-                  if ((event.getSource() & InputDevice.SOURCE_JOYSTICK) == InputDevice.SOURCE_JOYSTICK &&
-                      event.getAction() == MotionEvent.ACTION_MOVE) {
-                      
+                  if ((event.getSource() & InputDevice.SOURCE_JOYSTICK) == InputDevice.SOURCE_JOYSTICK) {
                       float x = event.getAxisValue(MotionEvent.AXIS_X);
                       float y = event.getAxisValue(MotionEvent.AXIS_Y);
-                      
-                      // 只有当摇杆推得比较远时才显示，防止抖动
-                      if (Math.abs(x) > 0.2 || Math.abs(y) > 0.2) {
-                          dataText.setText("摇杆坐标: \nX=" + String.format("%.2f", x) + " \nY=" + String.format("%.2f", y));
+                      if (Math.abs(x) > 0.1 || Math.abs(y) > 0.1) {
+                          dataText.setText("摇杆坐标: " + x + " / " + y);
                       }
-                      return true;
                   }
                   return super.onGenericMotionEvent(event);
               }
@@ -139,63 +128,5 @@ jobs:
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: Gamepad-Beitong-V33
-          path: app/build/outputs/apk/debug/*.apk
-          import java.util.HashMap;
-
-          public class MainActivity extends Activity {
-              private TextView msgText, rawText;
-
-              @Override
-              protected void onCreate(Bundle savedInstanceState) {
-                  super.onCreate(savedInstanceState);
-                  setContentView(R.layout.activity_main);
-                  msgText = findViewById(R.id.msgText);
-                  rawText = findViewById(R.id.rawText);
-                  checkUsbDevices();
-              }
-
-              private void checkUsbDevices() {
-                  UsbManager manager = (UsbManager) getSystemService(Context.USB_SERVICE);
-                  HashMap<String, UsbDevice> deviceList = manager.getDeviceList();
-                  if (!deviceList.isEmpty()) {
-                      StringBuilder sb = new StringBuilder("已识别 USB 设备:\n");
-                      for (UsbDevice device : deviceList.values()) {
-                          sb.append(device.getProductName()).append(" (ID:").append(device.getDeviceId()).append(")\n");
-                      }
-                      msgText.setText(sb.toString());
-                  }
-              }
-
-              // 尝试捕获手柄摇杆或特殊按钮信号
-              @Override
-              public boolean onGenericMotionEvent(android.view.MotionEvent event) {
-                  if ((event.getSource() & InputDevice.SOURCE_JOYSTICK) == InputDevice.SOURCE_JOYSTICK) {
-                      rawText.setText("检测到摇杆移动!");
-                      return true;
-                  }
-                  return super.onGenericMotionEvent(event);
-              }
-
-              @Override
-              public boolean dispatchKeyEvent(KeyEvent event) {
-                  if (event.getAction() == KeyEvent.ACTION_DOWN) {
-                      rawText.setText("按键码(KeyCode): " + event.getKeyCode());
-                      return true;
-                  }
-                  return super.dispatchKeyEvent(event);
-              }
-          }
-          EOF
-
-      - name: Build
-        uses: gradle/gradle-build-action@v2
-        with:
-          gradle-version: 7.5
-          arguments: assembleDebug --no-daemon
-
-      - name: Upload
-        uses: actions/upload-artifact@v4
-        with:
-          name: Gamepad-Raw-V32
+          name: Gamepad-Beitong-V34
           path: app/build/outputs/apk/debug/*.apk
